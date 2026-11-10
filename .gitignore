@@ -1,0 +1,16 @@
+# secrets / local config
+.env
+esp8266/config.h
+*.pem
+*.key
+
+# python / docker / editor
+__pycache__/
+*.pyc
+.venv/
+venv/
+mongo-data/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

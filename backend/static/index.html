@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Trash Bin Dashboard</title>
+<link rel="stylesheet" href="/static/css/style.css?v=5">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🗑</div>
+    <div>
+      <div class="brand-title">Smart Trash Bin</div>
+      <div class="brand-sub">
+        <span class="dot dot-green"></span>
+        อุปกรณ์ออนไลน์ <b id="stat-online">-/-</b> · อัปเดตล่าสุด <b id="stat-updated">-</b>
+      </div>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-open-settings" class="btn btn-dark">⚙ ตั้งค่าเกณฑ์แจ้งเตือน</button>
+    <button id="btn-toggle-notif" class="btn btn-icon" aria-label="ประวัติการแจ้งเตือน">
+      🔔<span id="notif-badge" class="notif-badge hidden">0</span>
+    </button>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- แถบแจ้งเตือนด่วน (มือถือ/เมื่อมีถังสีแดง) -->
+  <button id="banner-red" class="banner-red hidden">
+    <span class="banner-title" id="banner-title">มี 0 ถังต้องจัดการ</span>
+    <span class="banner-sub" id="banner-sub"></span>
+  </button>
+
+  <section class="summary-grid">
+    <div class="kpi"><span class="kpi-label">ถังทั้งหมด</span><span class="kpi-value" id="kpi-total">-</span></div>
+    <div class="kpi"><span class="kpi-label"><span class="dot dot-green"></span>ปกติ</span><span class="kpi-value" id="kpi-green">-</span></div>
+    <div class="kpi"><span class="kpi-label"><span class="dot dot-yellow"></span>เกินครึ่ง</span><span class="kpi-value" id="kpi-yellow">-</span></div>
+    <div class="kpi kpi-red" id="kpi-red-card"><span class="kpi-label"><span class="dot dot-red"></span>ต้องจัดการ</span><span class="kpi-value kpi-value-red" id="kpi-red">-</span></div>
+  </section>
+
+  <section class="row-grid">
+    <div class="card card-floorplan">
+      <div class="card-head">
+        <div>
+          <div class="card-title">ผังบ้าน</div>
+          <div class="card-sub">แตะหมุดเพื่อเลือกถัง</div>
+        </div>
+        <div class="legend">
+          <span><span class="dot dot-green"></span>ปกติ</span>
+          <span><span class="dot dot-yellow"></span>เกินครึ่ง</span>
+          <span><span class="dot dot-red"></span>เต็ม/มีกลิ่น</span>
+        </div>
+      </div>
+      <div class="floorplan" id="floorplan">
+        <div class="room room-kitchen">ห้องครัว</div>
+        <div class="room room-living">ห้องนั่งเล่น</div>
+        <div class="room room-bed">ห้องนอน</div>
+        <div class="room room-bath">ห้องน้ำ</div>
+        <div class="room room-porch">ระเบียง</div>
+        <div class="markers" id="floorplan-markers"><!-- render ด้วย JS --></div>
+      </div>
+    </div>
+
+    <div class="card card-binlist">
+      <div class="card-head">
+        <div>
+          <div class="card-title">สถานะถังขยะ</div>
+          <div class="card-sub">
+            เกณฑ์ทุกถัง · กลิ่น ≥ <b id="th-gas-label">-</b> · เต็มเมื่อระยะ ≤ <b id="th-dist-label">-</b> cm
+          </div>
+        </div>
+      </div>
+      <div class="bin-list" id="bin-list"><!-- render ด้วย JS --></div>
+    </div>
+  </section>
+
+  <section class="row-grid">
+    <div class="card card-forecast">
+      <div class="split">
+        <div class="split-col">
+          <div class="card-title">คาดว่าจะเต็มเมื่อไหร่</div>
+          <div class="card-sub">คำนวณจากอัตราขยะเพิ่มขึ้นในข้อมูลย้อนหลังที่มี</div>
+          <div class="eta-list" id="eta-list"><!-- render ด้วย JS --></div>
+        </div>
+        <div class="split-divider"></div>
+        <div class="split-col">
+          <div class="card-title">สถิติช่วงที่มีข้อมูล</div>
+          <div class="card-sub" id="stats-range">-</div>
+          <div class="stats-list" id="stats-list"><!-- render ด้วย JS --></div>
+          <div class="insight" id="insight-text"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-events">
+      <div class="card-head">
+        <div class="card-title">เหตุการณ์ล่าสุด</div>
+        <button id="btn-open-table" class="link-btn">ดูทั้งหมด</button>
+      </div>
+      <div class="events-list" id="events-list"><!-- render ด้วย JS --></div>
+    </div>
+  </section>
+
+  <div class="foot-note">อัปเดตล่าสุด <b id="stat-updated-2">-</b> · อุปกรณ์ออนไลน์ <b id="stat-online-2">-/-</b></div>
+</main>
+
+<!-- แผงตั้งค่าเกณฑ์ (ใช้ร่วมกันทุกถัง) -->
+<div id="overlay-settings" class="overlay hidden">
+  <button class="overlay-bg" data-close="settings" aria-label="ปิด"></button>
+  <div class="sheet sheet-side">
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">ตั้งค่าเกณฑ์แจ้งเตือน</div>
+        <div class="sheet-sub">ใช้ร่วมกันกับถังขยะทุกใบ (<span id="settings-total">-</span> ใบ)</div>
+      </div>
+      <button class="btn-x" data-close="settings" aria-label="ปิด">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <div class="field-row">
+          <label for="input-gas">เกณฑ์กลิ่นเหม็น (MQ-136 raw)</label>
+          <input type="number" id="input-gas-num" min="100" max="1023" step="1">
+        </div>
+        <input type="range" id="input-gas" min="100" max="1023" step="1">
+        <div class="field-note">ค่าที่อ่านได้ ≥ เกณฑ์นี้ → ถือว่ามีกลิ่น ไฟแดงทันทีแม้ขยะยังไม่เต็ม</div>
+      </div>
+      <div class="field">
+        <div class="field-row">
+          <label for="input-dist">ระยะที่ถือว่า "เต็ม" (cm)</label>
+          <input type="number" id="input-dist-num" min="1" max="10" step="0.5">
+        </div>
+        <input type="range" id="input-dist" min="1" max="10" step="0.5">
+        <div class="field-note">อัลตราโซนิควัดจากฝาถังลงไป ยิ่งระยะน้อย ขยะยิ่งสูง</div>
+      </div>
+      <div class="preview" id="settings-preview"><!-- render ด้วย JS --></div>
+    </div>
+    <div class="sheet-foot">
+      <button id="btn-reset-th" class="link-btn">คืนค่าเริ่มต้น</button>
+      <div class="sheet-foot-actions">
+        <button class="btn btn-outline" data-close="settings">ยกเลิก</button>
+        <button id="btn-save-th" class="btn btn-dark">บันทึกและใช้กับทุกถัง</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Popup แจ้งเตือนถังเต็ม + Snooze -->
+<div id="overlay-alert" class="overlay hidden">
+  <div class="overlay-bg overlay-bg-static"></div>
+  <div class="sheet sheet-center" id="alert-card"><!-- render ด้วย JS --></div>
+</div>
+
+<!-- ตารางประวัติเหตุการณ์ทั้งหมด -->
+<div id="overlay-table" class="overlay hidden">
+  <button class="overlay-bg" data-close="table" aria-label="ปิด"></button>
+  <div class="sheet sheet-table">
+    <div class="sheet-head">
+      <div class="sheet-title">ประวัติเหตุการณ์ทั้งหมด</div>
+      <button class="btn-x" data-close="table" aria-label="ปิด">✕</button>
+    </div>
+    <div class="table-filters" id="table-filters"><!-- render ด้วย JS --></div>
+    <div class="table-wrap" id="table-rows"><!-- render ด้วย JS --></div>
+  </div>
+</div>
+
+<!-- ประวัติการแจ้งเตือน (กระดิ่ง) -->
+<div id="overlay-notif" class="overlay hidden">
+  <button class="overlay-bg" data-close="notif" aria-label="ปิด"></button>
+  <div class="sheet sheet-center" style="width:420px;">
+    <div class="sheet-head">
+      <div class="sheet-title">ประวัติการแจ้งเตือน</div>
+      <button class="btn-x" data-close="notif" aria-label="ปิด">✕</button>
+    </div>
+    <div class="sheet-body" style="padding-top:0;max-height:420px;">
+      <div class="notif-list" id="notif-list"><!-- render ด้วย JS --></div>
+    </div>
+    <div class="sheet-foot">
+      <button id="btn-clear-notif" class="link-btn">ล้างข้อความ</button>
+      <button class="btn btn-outline" data-close="notif">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/js/app.js?v=5"></script>
+</body>
+</html>

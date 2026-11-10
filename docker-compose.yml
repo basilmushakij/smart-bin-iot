@@ -1,0 +1,81 @@
+# ===================================================================
+# Docker Compose Orchestration for Smart Bin IoT System
+# รันทุก Services พร้อมกันด้วยคำสั่ง: docker compose up -d --build
+# ===================================================================
+
+name: smart_bin
+
+services:
+  # ---------------------------------------------------------------
+  # MQTT Broker: Eclipse Mosquitto รับ-ส่งข้อความระหว่างบอร์ดและ Server
+  # ---------------------------------------------------------------
+  mqtt:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  # ---------------------------------------------------------------
+  # MongoDB: เก็บประวัติเซนเซอร์และค่าคอนฟิก Threshold
+  # ---------------------------------------------------------------
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - smartbin_mongodb_data:/data/db
+      - ./database/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+
+  # ---------------------------------------------------------------
+  # Collector: MQTT Subscriber ตรวจสอบความถูกต้องและบันทึกลง MongoDB
+  # ---------------------------------------------------------------
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - mqtt
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - MQTT_BROKER=${MQTT_BROKER}
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_TOPIC=${MQTT_TOPIC}
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - MONGO_COLLECTION_NAME=${MONGO_COLLECTION_NAME}
+
+  # ---------------------------------------------------------------
+  # Backend: FastAPI Web API & Web Dashboard
+  # ---------------------------------------------------------------
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      # Map พอร์ต 8081 บน Host เข้าพอร์ต 8000 ใน Container
+      - "8081:8000"
+    volumes:
+      - ./backend/static:/app/static
+      - ./backend/app.py:/app/app.py
+    depends_on:
+      - mongodb
+      - mqtt
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - MQTT_BROKER=${MQTT_BROKER}
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_CONFIG_TOPIC_PREFIX=${MQTT_CONFIG_TOPIC_PREFIX}
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - MONGO_COLLECTION_NAME=${MONGO_COLLECTION_NAME}
+      - MONGO_THRESHOLD_COLLECTION_NAME=${MONGO_THRESHOLD_COLLECTION_NAME}
+      - KNOWN_BINS=${KNOWN_BINS}
+      - BIN_OFFLINE_THRESHOLD_SECONDS=${BIN_OFFLINE_THRESHOLD_SECONDS}
+      - MQ_DANGER_DEFAULT=${MQ_DANGER_DEFAULT}
+      - FULL_DISTANCE_DEFAULT=${FULL_DISTANCE_DEFAULT}
+
+# Volume ถาวรสำหรับเก็บข้อมูลใน MongoDB
+volumes:
+  smartbin_mongodb_data:
