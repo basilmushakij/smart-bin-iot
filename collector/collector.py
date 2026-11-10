@@ -7,6 +7,7 @@
 # -----------------------------------------------------------------
 
 import os
+import re
 import json
 import time
 from datetime import datetime, timezone, timedelta
@@ -85,6 +86,10 @@ def validate_sensor_reading(sensor_data):
 
     if "bin_id" not in sensor_data:
         return False, "ไม่มี field 'bin_id' ในข้อความ"
+
+    # bin_id ถูกนำไปแสดงบนหน้าเว็บและใช้เป็นคีย์ใน DB จึงจำกัดรูปแบบ
+    if not isinstance(sensor_data["bin_id"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", sensor_data["bin_id"]):
+        return False, "bin_id รูปแบบไม่ถูกต้อง"
 
     for field_name in SENSOR_FIELDS_TO_CHECK:
         if field_name not in sensor_data:

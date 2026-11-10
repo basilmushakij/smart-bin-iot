@@ -285,6 +285,11 @@ function etaFor(binId, latest, e) {
 // ---------------------------------------------------------------
 // สถิติช่วงที่มีข้อมูล (จำนวนครั้งที่ "เข้าสู่" ไฟแดง แยกเหตุ เต็ม/กลิ่น)
 // ---------------------------------------------------------------
+// escape ก่อนใส่ลง innerHTML ทุกครั้ง (bin_id/ข้อความมาจาก MQTT/DB ซึ่งเชื่อถือไม่ได้)
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function binLabel(id) { return (BIN_META[id] || {}).label || ('ถัง ' + id); }
 function binRoom(id) { return (BIN_META[id] || {}).room || '-'; }
 function binTag(id, idx) { return (BIN_META[id] || {}).tag || String(idx + 1); }
@@ -368,7 +373,7 @@ function detectEvents() {
           }
           sendUnsnooze(id).catch(() => {});
           pushNotification(id, 'พ้นสถานะสีแดงแล้ว (นำขยะไปทิ้งแล้ว) -> เปิดเสียงแจ้งเตือนคืนทันที');
-          showToast(`ถัง ${binLabel(id)} พ้นสถานะสีแดงแล้ว · เปิดเสียงแจ้งเตือนคืนทันที (ไม่ต้องรอครบเวลา)`);
+          showToast(`ถัง ${esc(binLabel(id))} พ้นสถานะสีแดงแล้ว · เปิดเสียงแจ้งเตือนคืนทันที (ไม่ต้องรอครบเวลา)`);
         }
       }
 
@@ -377,7 +382,7 @@ function detectEvents() {
       // ยังแดงอยู่ แต่เพิ่งหมดเวลา snooze (5 นาที) หรือเปิดเสียงคืน - ต้องแจ้งเตือนซ้ำ เหมือนบอร์ดจริงที่บัซเซอร์ดังใหม่
       state.alertedOnce.delete(id);
       queueAlert(id, 'ครบกำหนด Snooze แล้ว ยังต้องจัดการอยู่');
-      showToast(`ถัง ${binLabel(id)} ครบกำหนด Snooze แล้ว แต่ขยะยังอยู่ · บอร์ดส่งเสียงเตือนต่อ`);
+      showToast(`ถัง ${esc(binLabel(id))} ครบกำหนด Snooze แล้ว แต่ขยะยังอยู่ · บอร์ดส่งเสียงเตือนต่อ`);
     }
     prevLevel[id] = e.level;
     prevSnoozed[id] = nowSnoozed;
@@ -451,14 +456,14 @@ function renderFloorplan() {
     const selected = state.selectedBin === id;
     const isSnoozed = !!(latest && latest.snoozed);
     return `
-    <div class="marker-wrap ${selected ? 'selected' : ''}" style="left:${meta.x}%;top:${meta.y}%" data-select="${id}">
+    <div class="marker-wrap ${selected ? 'selected' : ''}" style="left:${meta.x}%;top:${meta.y}%" data-select="${esc(id)}">
       <div style="position:relative;width:38px;height:38px;">
         ${e.level === 'red' ? `<div class="marker-ring" style="background:${LEVEL_MARKER.red}"></div>` : ''}
         <button class="marker-btn ${selected ? 'selected' : ''}" style="background:${LEVEL_MARKER[e.level]}"
-          data-select="${id}" aria-label="${binLabel(id)} ${binRoom(id)} สถานะ ${e.badge}">${binTag(id, i)}</button>
+          data-select="${esc(id)}" aria-label="${esc(binLabel(id))} ${esc(binRoom(id))} สถานะ ${e.badge}">${esc(binTag(id, i))}</button>
         ${isSnoozed && e.level === 'red' ? `<span class="marker-snooze-badge" title="ปิดเสียงชั่วคราว (ไฟแดงยังแสดง)">🔇</span>` : ''}
       </div>
-      <div class="marker-label ${selected ? 'selected' : ''}">${binRoom(id)} · ${e.badge}</div>
+      <div class="marker-label ${selected ? 'selected' : ''}">${esc(binRoom(id))} · ${e.badge}</div>
     </div>`;
   }).join('');
 }
@@ -472,11 +477,11 @@ function renderBinList() {
     const isMuted = !!(latest && latest.snoozed);
     const isPermanent = !!(latest && latest.permanentMute);
     return `
-    <div class="bin-row ${e.level === 'red' ? 'red' : ''} ${selected ? 'selected' : ''}" data-select="${id}" role="button" tabindex="0">
+    <div class="bin-row ${e.level === 'red' ? 'red' : ''} ${selected ? 'selected' : ''}" data-select="${esc(id)}" role="button" tabindex="0">
       <div class="bin-row-top">
         ${binFig(e.pct, LEVEL_COLOR[e.level])}
         <div class="bin-main">
-          <div class="bin-name-row"><span class="bin-name">${binLabel(id)}</span><span class="bin-room">${binRoom(id)}</span></div>
+          <div class="bin-name-row"><span class="bin-name">${esc(binLabel(id))}</span><span class="bin-room">${esc(binRoom(id))}</span></div>
           <div class="bin-reason" style="color:${e.level === 'green' ? '#4A4C46' : LEVEL_MARKER[e.level]}">${e.reason}</div>
           <div class="bin-meta">ระดับ ~${e.pct}%</div>
         </div>
@@ -486,7 +491,7 @@ function renderBinList() {
         </div>
         <div class="bin-stat">
           <div class="bin-stat-label">กลิ่น</div>
-          <div class="bin-stat-value" style="color:${e.smelly ? 'var(--red-text)' : 'inherit'}">${latest ? latest.gas : '-'}</div>
+          <div class="bin-stat-value" style="color:${e.smelly ? 'var(--red-text)' : 'inherit'}">${latest ? esc(latest.gas) : '-'}</div>
         </div>
         <div class="badge badge-${e.level === 'unknown' ? 'yellow' : e.level} ${isMuted && e.level === 'red' ? 'badge-snoozed' : ''}">
           <span class="dot dot-${e.level === 'unknown' ? 'yellow' : e.level}"></span>${e.badge}${isPermanent ? ' (🏠🔇)' : isMuted ? ' (🔇)' : ''}
@@ -508,10 +513,10 @@ function renderBinList() {
           </div>
           <div class="snooze-bar-actions">
             ${isMuted ? `
-              <button type="button" class="btn-snooze-pill btn-unsnooze" data-unsnooze="${id}">🔊 เปิดเสียงคืน</button>
+              <button type="button" class="btn-snooze-pill btn-unsnooze" data-unsnooze="${esc(id)}">🔊 เปิดเสียงคืน</button>
             ` : `
-              <button type="button" class="btn-snooze-pill btn-snooze" data-snooze="${id}" title="ปิดเสียง 5 นาที หรือเปิดคืนอัตโนมัติเมื่อเทขยะ">🔇 ปิด 5 นาที</button>
-              <button type="button" class="btn-snooze-pill btn-mute-perm" data-mute-permanent="${id}" title="ปิดเสียงถาวร กรณีไม่มีใครอยู่บ้าน">🏠 ปิดถาวร</button>
+              <button type="button" class="btn-snooze-pill btn-snooze" data-snooze="${esc(id)}" title="ปิดเสียง 5 นาที หรือเปิดคืนอัตโนมัติเมื่อเทขยะ">🔇 ปิด 5 นาที</button>
+              <button type="button" class="btn-snooze-pill btn-mute-perm" data-mute-permanent="${esc(id)}" title="ปิดเสียงถาวร กรณีไม่มีใครอยู่บ้าน">🏠 ปิดถาวร</button>
             `}
           </div>
         </div>
@@ -521,7 +526,7 @@ function renderBinList() {
             <span class="snooze-status-desc-subtle">🔊 เสียงเตือนเปิดอยู่</span>
           </div>
           <div class="snooze-bar-actions">
-            <button type="button" class="btn-snooze-pill btn-mute-perm-subtle" data-mute-permanent="${id}" title="กดปิดเสียงถาวรล่วงหน้า กรณีไม่มีใครอยู่บ้าน">🏠 ปิดเสียงถาวร (ไม่อยู่บ้าน)</button>
+            <button type="button" class="btn-snooze-pill btn-mute-perm-subtle" data-mute-permanent="${esc(id)}" title="กดปิดเสียงถาวรล่วงหน้า กรณีไม่มีใครอยู่บ้าน">🏠 ปิดเสียงถาวร (ไม่อยู่บ้าน)</button>
           </div>
         </div>
       `}
@@ -543,9 +548,9 @@ function renderForecastAndStats() {
 
   $('#eta-list').innerHTML = items.map(({ id, e, eta }, i) => `
     <div class="eta-row">
-      <span class="eta-chip" style="background:${LEVEL_MARKER[e.level]}">${binTag(id, i)}</span>
+      <span class="eta-chip" style="background:${LEVEL_MARKER[e.level]}">${esc(binTag(id, i))}</span>
       <div style="flex:1;min-width:0;">
-        <div class="eta-title">${binLabel(id)} · ${binRoom(id)}</div>
+        <div class="eta-title">${esc(binLabel(id))} · ${esc(binRoom(id))}</div>
         <div class="eta-note" style="color:${e.full || e.smelly ? 'var(--red-text)' : 'var(--text-dim)'}">${e.full ? 'ควรนำไปทิ้งตอนนี้' : e.smelly ? 'มีกลิ่น ควรทิ้งแม้ยังไม่เต็ม' : 'ปกติ'}</div>
       </div>
       <div class="eta-right">
@@ -559,7 +564,7 @@ function renderForecastAndStats() {
   const maxTotal = Math.max(1, ...stats.rows.map((r) => r.total));
   $('#stats-list').innerHTML = stats.rows.map((r) => `
     <div class="stat-row">
-      <div class="stat-name"><div style="font-size:12.5px;font-weight:600">${r.name}</div><div style="font-size:11px;color:var(--text-dim)">${r.room}</div></div>
+      <div class="stat-name"><div style="font-size:12.5px;font-weight:600">${esc(r.name)}</div><div style="font-size:11px;color:var(--text-dim)">${esc(r.room)}</div></div>
       <div class="stat-bar-track">
         <div class="stat-bar-full" style="width:${r.total ? r.wFull / maxTotal * 100 : 0}%"></div>
         <div class="stat-bar-smell" style="width:${r.total ? r.wSmell / maxTotal * 100 : 0}%"></div>
@@ -574,8 +579,8 @@ function renderEvents() {
     <div class="event-row">
       <span class="event-dot" style="background:${LEVEL_MARKER[ev.level] || '#9C9E96'}"></span>
       <div style="flex:1;min-width:0;">
-        <div class="event-title">${ev.bin} · ${ev.text}</div>
-        <div class="event-detail">${ev.room} · ระยะ ${ev.dist} cm · กลิ่น ${ev.gas}</div>
+        <div class="event-title">${esc(ev.bin)} · ${esc(ev.text)}</div>
+        <div class="event-detail">${esc(ev.room)} · ระยะ ${esc(ev.dist)} cm · กลิ่น ${esc(ev.gas)}</div>
       </div>
       <div class="event-time">${ev.time}</div>
     </div>`).join('') || `<div style="font-size:13px;color:var(--text-dim)">ยังไม่มีเหตุการณ์</div>`;
@@ -588,8 +593,8 @@ function renderNotifPanel() {
     <div class="notif-row">
       <span class="notif-dot" style="background:${n.reason.includes('Snooze') || n.reason.includes('ปิดแจ้งเตือน') ? '#9C9E96' : '#C93A3A'}"></span>
       <div style="flex:1;min-width:0;">
-        <div class="notif-title">${n.bin} · ${n.room}</div>
-        <div class="notif-detail">${n.reason}</div>
+        <div class="notif-title">${esc(n.bin)} · ${esc(n.room)}</div>
+        <div class="notif-detail">${esc(n.reason)}</div>
       </div>
       <div class="notif-time">${n.time}</div>
     </div>`).join('') || `<div class="notif-empty">ยังไม่มีการแจ้งเตือน</div>`;
@@ -662,13 +667,13 @@ function renderAlertCard() {
       <div class="alert-icon">${isPermanent ? '🏠' : isMuted ? '🔇' : '🚮'}</div>
       <div>
         <div class="alert-tag"><span class="dot dot-red"></span>แจ้งเตือน${isPermanent ? ' · ปิดเสียงถาวร (ไม่อยู่บ้าน)' : isMuted ? ' · ปิดเสียงชั่วคราว' : ''}</div>
-        <div class="alert-title">${binLabel(binId)} ${e.badge}แล้ว</div>
-        <div class="alert-sub">${room} · ${isPermanent ? 'ปิดเสียงถาวร (ไม่อยู่บ้าน) ไฟแดงยังแสดงตามปกติ' : isMuted ? 'ปิดเสียงชั่วคราวแล้ว แต่ยังมีขยะอยู่ ไฟแดงยังแสดงตามปกติ' : 'กรุณานำขยะไปทิ้ง'}</div>
+        <div class="alert-title">${esc(binLabel(binId))} ${e.badge}แล้ว</div>
+        <div class="alert-sub">${esc(room)} · ${isPermanent ? 'ปิดเสียงถาวร (ไม่อยู่บ้าน) ไฟแดงยังแสดงตามปกติ' : isMuted ? 'ปิดเสียงชั่วคราวแล้ว แต่ยังมีขยะอยู่ ไฟแดงยังแสดงตามปกติ' : 'กรุณานำขยะไปทิ้ง'}</div>
       </div>
     </div>
     <div class="alert-facts">
       <div class="alert-fact"><span>ระยะที่วัดได้</span><span style="text-align:right"><b style="color:${e.full ? 'var(--red-text)' : 'inherit'}">${latest ? latest.dist.toFixed(1) : '-'} cm</b><br><small style="color:var(--text-dim)">เกณฑ์เต็ม ≤ ${state.th.dist} cm</small></span></div>
-      <div class="alert-fact"><span>กลิ่น MQ-136</span><span style="text-align:right"><b style="color:${e.smelly ? 'var(--red-text)' : 'inherit'}">${latest ? latest.gas : '-'}</b><br><small style="color:var(--text-dim)">เกณฑ์กลิ่น ≥ ${state.th.gas}</small></span></div>
+      <div class="alert-fact"><span>กลิ่น MQ-136</span><span style="text-align:right"><b style="color:${e.smelly ? 'var(--red-text)' : 'inherit'}">${latest ? esc(latest.gas) : '-'}</b><br><small style="color:var(--text-dim)">เกณฑ์กลิ่น ≥ ${state.th.gas}</small></span></div>
       <div class="alert-fact"><span>สถานะเสียงบอร์ด</span><span style="text-align:right"><b style="color:${isMuted ? 'var(--red-text)' : 'var(--green-text)'}">${isPermanent ? '🏠 ปิดเสียงถาวร (โหมดไม่อยู่บ้าน)' : isMuted ? '🔇 ปิดเสียงชั่วคราว 5 นาที' : '🔊 พร้อมส่งเสียงเตือน'}</b></span></div>
     </div>
     <div class="alert-actions">
@@ -740,11 +745,11 @@ function renderTable() {
     ${rows.map((r) => `
     <div class="table-row">
       <div class="time">${r.time}</div>
-      <div>${r.bin}</div>
-      <div>${r.room}</div>
+      <div>${esc(r.bin)}</div>
+      <div>${esc(r.room)}</div>
       <div>${r.dist}</div>
       <div>${r.gas}</div>
-      <div>${r.text}</div>
+      <div>${esc(r.text)}</div>
       <div><span class="badge ${badgeClass[r.level] || ''}" style="display:inline-flex">${badgeLabel[r.level] || '-'}</span></div>
     </div>`).join('') || '<div style="padding:20px;color:var(--text-dim)">ยังไม่มีข้อมูล</div>'}`;
 }

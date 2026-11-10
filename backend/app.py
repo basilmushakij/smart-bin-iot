@@ -8,11 +8,12 @@
 # -----------------------------------------------------------------
 
 import os
+import re
 import logging
 from datetime import datetime, timezone, timedelta
 
 import paho.mqtt.client as mqtt
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pymongo import MongoClient, DESCENDING
@@ -42,6 +43,28 @@ MONGO_THRESHOLD_COLLECTION_NAME = os.environ.get("MONGO_THRESHOLD_COLLECTION_NAM
 
 KNOWN_BINS_RAW = os.environ.get("KNOWN_BINS") or "smartbin01"
 KNOWN_BINS = [bin_name.strip() for bin_name in KNOWN_BINS_RAW.split(",") if bin_name.strip()]
+
+
+# bin_id ไปอยู่ใน MQTT topic และ query MongoDB จึงต้องจำกัดรูปแบบให้ตรงกัน
+# (กัน topic injection เช่น "+" "#" "/" และกัน XSS ฝั่งหน้าเว็บ)
+BIN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+
+def valid_bin_id(bin_id: str) -> str:
+    if not BIN_ID_PATTERN.fullmatch(bin_id):
+        raise HTTPException(status_code=400, detail="bin_id ไม่ถูกต้อง (ใช้ได้เฉพาะ A-Z a-z 0-9 _ - ไม่เกิน 32 ตัว)")
+    return bin_id
+
+
+def known_bin_id(bin_id: str = Depends(valid_bin_id)) -> str:
+    # endpoint ที่ส่งคำสั่งหรือเขียนข้อมูล ต้องเป็นถังที่ระบบรู้จักเท่านั้น
+    try:
+        known = set(KNOWN_BINS) | set(readings_collection.distinct("bin_id"))
+    except PyMongoError:
+        known = set(KNOWN_BINS)
+    if bin_id not in known:
+        raise HTTPException(status_code=404, detail="ไม่รู้จักถังนี้")
+    return bin_id
 
 BIN_OFFLINE_THRESHOLD_SECONDS = int(os.environ.get("BIN_OFFLINE_THRESHOLD_SECONDS") or "30")
 
@@ -200,7 +223,7 @@ def get_all_bins():
 
 
 @app.get("/api/bins/{bin_id}/latest")
-def get_latest_reading(bin_id: str):
+def get_latest_reading(bin_id: str = Depends(valid_bin_id)):
     try:
         latest_document = readings_collection.find_one(
             {"bin_id": bin_id},
@@ -217,7 +240,7 @@ def get_latest_reading(bin_id: str):
 
 
 @app.get("/api/bins/{bin_id}/history")
-def get_reading_history(bin_id: str, limit: int = 100):
+def get_reading_history(bin_id: str = Depends(valid_bin_id), limit: int = 100):
     if limit <= 0:
         raise HTTPException(status_code=400, detail="limit ต้องเป็นจำนวนเต็มบวก")
 
@@ -236,7 +259,7 @@ def get_reading_history(bin_id: str, limit: int = 100):
 
 
 @app.get("/api/bins/{bin_id}/threshold")
-def get_bin_threshold(bin_id: str):
+def get_bin_threshold(bin_id: str = Depends(valid_bin_id)):
     try:
         threshold_document = thresholds_collection.find_one({"bin_id": bin_id})
     except PyMongoError as mongo_error:
@@ -251,7 +274,7 @@ def get_bin_threshold(bin_id: str):
 
 
 @app.post("/api/bins/{bin_id}/threshold")
-async def update_bin_threshold(bin_id: str, request: Request):
+async def update_bin_threshold(request: Request, bin_id: str = Depends(known_bin_id)):
     # ต้องเป็น "async def" เพราะข้างในเรียก "await request.json()" (เหตุผล
     # เดียวกับ middleware ด้านบน เป็นกติกาที่ FastAPI บังคับ)
     try:
@@ -300,7 +323,7 @@ async def update_bin_threshold(bin_id: str, request: Request):
 
 
 @app.post("/api/bins/{bin_id}/snooze")
-async def snooze_bin(bin_id: str, request: Request = None):
+async def snooze_bin(bin_id: str = Depends(known_bin_id), request: Request = None):
     # ปุ่ม Snooze หรือโหมดปิดเสียงบน dashboard เรียก endpoint นี้
     # รองรับ action ผ่าน body: "snooze", "permanent_mute", "unsnooze"
     action = "snooze"
@@ -325,7 +348,7 @@ async def snooze_bin(bin_id: str, request: Request = None):
 
 
 @app.post("/api/bins/{bin_id}/mute_permanent")
-def mute_permanent_bin(bin_id: str):
+def mute_permanent_bin(bin_id: str = Depends(known_bin_id)):
     # คำสั่งปิดเสียงถาวร (โหมดไม่อยู่บ้าน) ไม่หมดเวลาจนกว่าจะกดเปิดเสียงคืน
     sent_successfully = publish_bin_command(bin_id, "permanent_mute")
 
@@ -336,7 +359,7 @@ def mute_permanent_bin(bin_id: str):
 
 
 @app.post("/api/bins/{bin_id}/unsnooze")
-def unsnooze_bin(bin_id: str):
+def unsnooze_bin(bin_id: str = Depends(known_bin_id)):
     # คำสั่งเปิดเสียงเตือนคืนทันที (ยกเลิกทั้ง Snooze และปิดเสียงถาวร)
     sent_successfully = publish_bin_command(bin_id, "unsnooze")
 
