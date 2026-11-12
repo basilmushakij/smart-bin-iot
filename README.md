@@ -6,6 +6,12 @@ A university group project. A smart trash bin that measures how full it is and h
 warns people with LEDs, a buzzer and an OLED screen, and sends the data to a web dashboard.
 You can change the alert thresholds and mute the buzzer from the dashboard.
 
+## Prototype
+
+<img src="docs/prototype.jpg" alt="Smart bin prototype" width="360">
+
+The working prototype: an ESP8266 on a breadboard with an OLED screen, the distance and smell sensors, and LEDs, mounted on a cardboard lid over a plastic cup. Both sensors face down into the cup.
+
 ## How it works
 
 ![architecture](docs/architecture.png)
